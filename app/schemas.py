@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field #type: ignore
 from typing import List, Optional
 
 
@@ -8,33 +8,16 @@ class PredictSignRequest(BaseModel):
         ...,
         description=(
             "2D array of keypoints [num_frames, 858]. "
-            "Each frame contains: left_hand(63) + right_hand(63) + "
-            "face_subset(204) + body(99) + velocities(429) = 858 values."
+            "Each frame: left_hand(63) + right_hand(63) + "
+            "face_subset(204) + body(99) + velocities(429) = 858 values. "
+            "Extracted client-side with MediaPipe Holistic."
         ),
     )
 
     class Config:
         json_schema_extra = {
             "example": {
-                "keypoints": [
-                    [0.0] * 858,
-                    [0.0] * 858,
-                ]
-            }
-        }
-
-
-class PredictSentenceRequest(BaseModel):
-    """Request body for sentence prediction (sliding window)."""
-    keypoints: List[List[float]] = Field(
-        ...,
-        description="2D array of keypoints [num_frames, 858].",
-    )
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "keypoints": [[0.0] * 858] * 32
+                "keypoints": [[0.0] * 858, [0.0] * 858]
             }
         }
 
@@ -55,14 +38,6 @@ class SignPredictionResponse(BaseModel):
 class PredictSignResponse(BaseModel):
     success: bool = True
     prediction: SignPredictionResponse
-
-
-class SentencePredictionResponse(BaseModel):
-    success: bool = True
-    sentence: str
-    signs: List[SignPredictionResponse]
-    total_frames: int
-    processing_time: float
 
 
 class HealthResponse(BaseModel):

@@ -5,8 +5,8 @@ import logging
 from collections import defaultdict
 from typing import Optional
 
-from fastapi import HTTPException, Request, Security
-from fastapi.security import APIKeyHeader
+from fastapi import HTTPException, Request, Security #type: ignore
+from fastapi.security import APIKeyHeader #type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,6 @@ _API_KEY: Optional[str] = os.getenv("API_KEY")
 
 
 def get_api_key() -> Optional[str]:
-    """Return the configured API key (re-reads env on first call if needed)."""
     global _API_KEY
     if _API_KEY is None:
         _API_KEY = os.getenv("API_KEY")
@@ -28,28 +27,33 @@ async def verify_api_key(
     api_key: Optional[str] = Security(API_KEY_HEADER),
 ) -> str:
     """
-    FastAPI dependency that validates the X-API-Key header.
+    Validate the X-API-Key header.
 
-    - If API_KEY env var is not set, authentication is DISABLED (dev mode).
-    - If set, every request must include a matching X-API-Key header.
-
-    Returns the validated key (or "dev-mode" when auth is disabled).
+    - If API_KEY env var is not set, the app refuses to start in a way that
+      makes the misconfiguration obvious (see lifespan in main.py).
+    - In practice this dependency always has a key to check against.
     """
     expected = get_api_key()
 
+    # Warn loudly — startup should have caught this, but be defensive.
     if not expected:
-        logger.debug("API key not configured - authentication disabled (dev mode)")
-        return "dev-mode"
+        logger.error(
+            "API_KEY is not configured. "
+            "Set the API_KEY environment variable before deploying."
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Server misconfiguration: authentication is not set up.",
+        )
 
     if not api_key:
-        logger.warning("Request missing X-API-Key header")
         raise HTTPException(
             status_code=403,
-            detail="Missing API key. Include 'X-API-Key' header.",
+            detail="Missing API key. Include an 'X-API-Key' header.",
         )
 
     if api_key != expected:
-        logger.warning("Invalid API key received")
+        logger.warning("Request rejected: invalid API key")
         raise HTTPException(
             status_code=403,
             detail="Invalid API key.",
@@ -58,7 +62,6 @@ async def verify_api_key(
     return api_key
 
 
-# Configuration from environment
 RATE_LIMIT_MAX_REQUESTS = int(os.getenv("RATE_LIMIT_MAX_REQUESTS", "30"))
 RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
 
@@ -67,40 +70,36 @@ class RateLimiter:
     """
     In-memory sliding window rate limiter keyed by client IP.
 
-    Not suitable for multi-process deployments (use Redis-backed
-    alternative for horizontal scaling). Fine for single-process
-    Render free tier.
+    Not suitable for multi-process deployments (use a Redis-backed limiter
+    for horizontal scaling). Fine for a single-process deployment (Render free tier).
     """
+
+    TRUST_PROXY: bool = os.getenv("TRUST_PROXY", "false").lower() == "true"
 
     def __init__(self, max_requests: int, window_seconds: int):
         self.max_requests = max_requests
         self.window_seconds = window_seconds
-        # {ip: [timestamp, timestamp, ...]}
         self._requests: dict[str, list[float]] = defaultdict(list)
 
     def _get_client_ip(self, request: Request) -> str:
-        """Extract client IP, respecting X-Forwarded-For behind proxies."""
-        forwarded = request.headers.get("X-Forwarded-For")
-        if forwarded:
-            return forwarded.split(",")[0].strip()
+        """
+        Extract client IP.
+        """
+        if self.TRUST_PROXY:
+            forwarded = request.headers.get("X-Forwarded-For")
+            if forwarded:
+                # Take the leftmost IP (original client), not the last hop.
+                return forwarded.split(",")[0].strip()
+
         return request.client.host if request.client else "unknown"
 
     def _cleanup(self, ip: str, now: float) -> None:
-        """Remove timestamps outside the current window."""
         cutoff = now - self.window_seconds
-        self._requests[ip] = [
-            ts for ts in self._requests[ip] if ts > cutoff
-        ]
+        self._requests[ip] = [ts for ts in self._requests[ip] if ts > cutoff]
         if not self._requests[ip]:
             del self._requests[ip]
 
     def check(self, request: Request) -> dict:
-        """
-        Check rate limit for the given request.
-
-        Returns a dict with rate-limit headers info.
-        Raises HTTPException 429 if limit exceeded.
-        """
         now = time.time()
         ip = self._get_client_ip(request)
 
@@ -111,17 +110,16 @@ class RateLimiter:
         if current_count >= self.max_requests:
             oldest = self._requests[ip][0]
             retry_after = int(self.window_seconds - (now - oldest)) + 1
-
+            # Log IP at warning level — this is an operational event, not user content.
             logger.warning(
-                f"Rate limit exceeded for IP {ip}: "
-                f"{current_count}/{self.max_requests} requests"
+                f"Rate limit exceeded: {current_count}/{self.max_requests} "
+                f"requests in window"
             )
             raise HTTPException(
                 status_code=429,
                 detail=(
-                    f"Rate limit exceeded. Maximum {self.max_requests} requests "
-                    f"per {self.window_seconds} seconds. "
-                    f"Retry after {retry_after} seconds."
+                    f"Rate limit exceeded. Max {self.max_requests} requests "
+                    f"per {self.window_seconds}s. Retry after {retry_after}s."
                 ),
                 headers={"Retry-After": str(retry_after)},
             )
@@ -131,10 +129,9 @@ class RateLimiter:
         return {
             "X-RateLimit-Limit": str(self.max_requests),
             "X-RateLimit-Remaining": str(self.max_requests - current_count - 1),
-            "X-RateLimit-Reset": str(
-                int(now + self.window_seconds)
-            ),
+            "X-RateLimit-Reset": str(int(now + self.window_seconds)),
         }
+
 
 rate_limiter = RateLimiter(
     max_requests=RATE_LIMIT_MAX_REQUESTS,
@@ -143,7 +140,7 @@ rate_limiter = RateLimiter(
 
 
 async def check_rate_limit(request: Request) -> dict:
-    """FastAPI dependency that enforces rate limiting."""
+    """FastAPI dependency that enforces per-IP rate limiting."""
     return rate_limiter.check(request)
 
 MAX_CONCURRENT_INFERENCES = int(os.getenv("MAX_CONCURRENT_INFERENCES", "2"))
@@ -153,35 +150,48 @@ _inference_semaphore: Optional[asyncio.Semaphore] = None
 
 def get_inference_semaphore() -> asyncio.Semaphore:
     """
-    Lazy-initialize the semaphore (must happen inside the event loop).
+    Lazy-initialize the semaphore inside the running event loop.
 
-    Limits the number of simultaneous model inferences to prevent CPU
-    saturation on resource-constrained environments (e.g. Render free tier).
+    Limits simultaneous model inferences to prevent CPU saturation on
+    resource-constrained environments.
     """
     global _inference_semaphore
     if _inference_semaphore is None:
         _inference_semaphore = asyncio.Semaphore(MAX_CONCURRENT_INFERENCES)
         logger.info(
-            f"Inference semaphore initialized: max {MAX_CONCURRENT_INFERENCES} "
-            f"concurrent inferences"
+            f"Inference semaphore initialized (max={MAX_CONCURRENT_INFERENCES})"
         )
     return _inference_semaphore
 
 
+INFERENCE_SLOT_TIMEOUT = float(os.getenv("INFERENCE_SLOT_TIMEOUT", "10"))
+"""
+How long (seconds) a request will wait for a free inference slot before
+returning 503. Default is 10s, which is generous enough for CPU inference
+on a local machine without letting requests pile up indefinitely.
+
+Set to 0 in the environment to get the original fail-fast behavior.
+"""
+
+
 async def acquire_inference_slot() -> None:
     """
-    Try to acquire an inference slot without blocking indefinitely.
+    Wait up to INFERENCE_SLOT_TIMEOUT seconds for a free inference slot.
 
-    If all slots are occupied, immediately returns 503 instead of
-    queueing the request (fail-fast to avoid cascading timeouts).
+    - timeout > 0 : queue the request for up to N seconds (good for dev/CPU)
+    - timeout = 0 : fail immediately if all slots are busy (original behavior)
+
+    Using asyncio.wait_for keeps the acquire atomic, avoiding the race
+    condition of inspecting sem._value before calling acquire().
     """
     sem = get_inference_semaphore()
-
-    acquired = sem._value > 0
-    if not acquired:
+    timeout = INFERENCE_SLOT_TIMEOUT if INFERENCE_SLOT_TIMEOUT > 0 else None
+    try:
+        await asyncio.wait_for(sem.acquire(), timeout=timeout)
+    except asyncio.TimeoutError:
         logger.warning(
-            f"All {MAX_CONCURRENT_INFERENCES} inference slots occupied. "
-            f"Rejecting request."
+            f"All {MAX_CONCURRENT_INFERENCES} inference slots occupied after "
+            f"{INFERENCE_SLOT_TIMEOUT}s — request rejected"
         )
         raise HTTPException(
             status_code=503,
@@ -192,13 +202,10 @@ async def acquire_inference_slot() -> None:
             headers={"Retry-After": "5"},
         )
 
-    await sem.acquire()
-
 
 def release_inference_slot() -> None:
     """Release an inference slot back to the pool."""
-    sem = get_inference_semaphore()
-    sem.release()
+    get_inference_semaphore().release()
 
 MAX_FRAMES_PER_REQUEST = int(os.getenv("MAX_FRAMES_PER_REQUEST", "512"))
 EXPECTED_FEATURE_DIM = 858
