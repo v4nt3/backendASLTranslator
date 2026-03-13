@@ -1,10 +1,3 @@
-"""
-Configuration system for sign language recognition.
-
-Supports loading from YAML files and checkpoint dictionaries.
-Optimized for CPU inference on Render free tier (~512MB RAM).
-"""
-
 import yaml # type: ignore
 from dataclasses import dataclass, field, asdict
 from enum import Enum
