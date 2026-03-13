@@ -193,6 +193,8 @@ async def predict_sign(request: PredictSignRequest):
     try:
         prediction = engine.predict_sign(features)
     except Exception as e:
+        # Log the error type only — avoid logging tensor contents or
+        # prediction payloads that could contain user information.
         logger.error(f"Inference error: {type(e).__name__}")
         raise HTTPException(status_code=500, detail="Inference failed.")
     finally:
