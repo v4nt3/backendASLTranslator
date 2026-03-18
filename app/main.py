@@ -118,13 +118,14 @@ def _validate_keypoints(keypoints: list) -> np.ndarray:
     """
     arr = np.array(keypoints, dtype=np.float32)
 
+    if arr.shape[0] == 0:
+        raise HTTPException(status_code=422, detail="keypoints array is empty")
+
     if arr.ndim != 2:
         raise HTTPException(
             status_code=422,
             detail=f"keypoints must be a 2D array, got shape {arr.shape}",
         )
-    if arr.shape[0] == 0:
-        raise HTTPException(status_code=422, detail="keypoints array is empty")
 
     if arr.shape[0] > MAX_FRAMES_PER_REQUEST:
         raise HTTPException(
