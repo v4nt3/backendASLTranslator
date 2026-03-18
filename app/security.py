@@ -35,7 +35,6 @@ async def verify_api_key(
     """
     expected = get_api_key()
 
-    # Warn loudly — startup should have caught this, but be defensive.
     if not expected:
         logger.error(
             "API_KEY is not configured. "
@@ -110,7 +109,7 @@ class RateLimiter:
         if current_count >= self.max_requests:
             oldest = self._requests[ip][0]
             retry_after = int(self.window_seconds - (now - oldest)) + 1
-            # Log IP at warning level — this is an operational event, not user content.
+
             logger.warning(
                 f"Rate limit exceeded: {current_count}/{self.max_requests} "
                 f"requests in window"
@@ -175,15 +174,7 @@ Set to 0 in the environment to get the original fail-fast behavior.
 
 
 async def acquire_inference_slot() -> None:
-    """
-    Wait up to INFERENCE_SLOT_TIMEOUT seconds for a free inference slot.
 
-    - timeout > 0 : queue the request for up to N seconds (good for dev/CPU)
-    - timeout = 0 : fail immediately if all slots are busy (original behavior)
-
-    Using asyncio.wait_for keeps the acquire atomic, avoiding the race
-    condition of inspecting sem._value before calling acquire().
-    """
     sem = get_inference_semaphore()
     timeout = INFERENCE_SLOT_TIMEOUT if INFERENCE_SLOT_TIMEOUT > 0 else None
     try:

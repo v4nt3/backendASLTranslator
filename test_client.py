@@ -1,4 +1,3 @@
-
 import argparse
 import os
 import sys
@@ -15,14 +14,13 @@ from dotenv import load_dotenv #type: ignore
 load_dotenv()
 
 
-FEATURE_DIM = 858 #dimension
+FEATURE_DIM = 858
 FACE_LANDMARKS_SUBSET = list(range(68))
-
 
 
 class PoseExtractor:
     """
-    It extracts the same 858 features that the backend expects.
+    Extracts the same 858 features that the backend expects.
 
     Structure per frame:
         left_hand  (21 x 3 = 63)
@@ -47,11 +45,6 @@ class PoseExtractor:
         self._prev_keypoints = None
 
     def extract(self, frame_rgb: np.ndarray):
-        """
-        Returns:
-            features      (858,) float32
-            hands_visible bool
-        """
         results = self.holistic.process(frame_rgb)
         hands_visible = (
             results.left_hand_landmarks is not None
@@ -113,14 +106,14 @@ class PoseExtractor:
 
 class BackendClient:
     def __init__(self, base_url: str, api_key: str):
-        self.predict_url = f"{base_url.rstrip('/')}/predict/sign"
-        self.health_url  = f"{base_url.rstrip('/')}/health"
-        self.headers = {
+        self.predict_url  = f"{base_url.rstrip('/')}/predict/sign"
+        self.health_url   = f"{base_url.rstrip('/')}/health"
+        self.sentence_url = f"{base_url.rstrip('/')}/process/sentence"
+        self.session = requests.Session()
+        self.session.headers.update({
             "Content-Type": "application/json",
             "X-API-Key": api_key,
-        }
-        self.session = requests.Session()
-        self.session.headers.update(self.headers)
+        })
 
     def health(self) -> dict:
         resp = self.session.get(self.health_url, timeout=5)
@@ -128,14 +121,13 @@ class BackendClient:
         return resp.json()
 
     def predict(self, frames: List[np.ndarray], retries: int = 3, retry_delay: float = 1.0) -> Optional[dict]:
-
         payload = {"keypoints": [f.tolist() for f in frames]}
         for attempt in range(1, retries + 1):
             try:
                 resp = self.session.post(self.predict_url, json=payload, timeout=15)
                 if resp.status_code == 503 and attempt < retries:
                     wait = float(resp.headers.get("Retry-After", retry_delay))
-                    print(f"[RETRY {attempt}/{retries}] Servidor ocupado, reintentando en {wait:.1f}s...")
+                    print(f"[RETRY {attempt}/{retries}] Servidor ocupado, reintentando en {wait:.1f}s")
                     time.sleep(wait)
                     continue
                 resp.raise_for_status()
@@ -146,11 +138,21 @@ class BackendClient:
             except requests.exceptions.RequestException as e:
                 print(f"\n[ERROR de conexión] {e}")
                 return None
-        print(f"[ERROR] Servidor ocupado luego de {retries} intentos.")
+        print(f"Servidor ocupado luego de {retries} intentos.")
         return None
 
+    def process_sentence(self, words: str) -> Optional[str]:
+        payload = {"words": words}
+        try:
+            resp = self.session.post(self.sentence_url, json=payload, timeout=30)
+            resp.raise_for_status()
+            return resp.json().get("sentence")
+        except requests.exceptions.RequestException as e:
+            print(f"\n[ERROR NLP] {e}")
+            return None
 
-# state machine
+
+# State machine
 class State(Enum):
     IDLE       = auto()
     SIGNING    = auto()
@@ -181,34 +183,49 @@ def draw_ui(
 
     cv2.rectangle(frame, (0, h - 140), (w, h), (0, 0, 0), -1)
 
-    # Indicador de estado
     color = STATE_COLORS[state]
     cv2.circle(frame, (25, 25), 12, color, -1)
     cv2.putText(frame, STATE_LABELS[state], (45, 31),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.65, color, 2)
 
-    # Última predicción
     if last_label:
         lat_str = f" | {latency_ms:.0f} ms" if latency_ms else ""
         cv2.putText(
             frame,
-            f"Ultima seña: {last_label} ({last_conf:.1%}){lat_str}",
+            f"Ultima sena: {last_label} ({last_conf:.1%}){lat_str}",
             (20, h - 110),
             cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 255, 0), 2,
         )
 
-    # Oración acumulada
-    sentence_text = " ".join(sentence) or "Esperando señas..."
+    sentence_text = " ".join(sentence) or "Esperando senas"
     cv2.putText(frame, sentence_text, (20, h - 65),
                 cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255), 2)
 
-    # Instrucciones
     cv2.putText(
         frame,
         "[Enter]: Enviar  [Backspace]: Borrar ultima  [Q]: Salir",
         (20, h - 20),
         cv2.FONT_HERSHEY_SIMPLEX, 0.48, (150, 150, 150), 1,
     )
+
+
+def _handle_key(key: int, sentence: List[str], client: BackendClient):
+    if key in (13, 10):  # Enter
+        raw_sentence = " ".join(sentence)
+        print(f"\nORACIÓN ORIGINAL: {raw_sentence}")
+
+        if raw_sentence.strip():
+            fixed = client.process_sentence(raw_sentence)
+            if fixed:
+                print(f"ORACIÓN CORREGIDA: {fixed}\n")
+            else:
+                print("[WARN] No se pudo procesar con LLM\n")
+
+        sentence.clear()
+
+    elif key in (8, 127):  # Backspace
+        if sentence:
+            print(f"[Borrado]: {sentence.pop()}")
 
 
 def run(
@@ -221,17 +238,17 @@ def run(
     display: bool = True,
 ):
     client = BackendClient(base_url, api_key)
-    print(f"\nConectando a {base_url} ...")
+    print(f"\nConectando a {base_url}")
     try:
         health = client.health()
         print(f"[OK] Backend listo: {health}")
     except Exception as e:
-        print(f"[ERROR] No se puede conectar al backend: {e}")
+        print(f"No se puede conectar al backend: {e}")
         sys.exit(1)
 
     cap = cv2.VideoCapture(camera_index)
     if not cap.isOpened():
-        print(f"[ERROR] No se puede abrir la cámara {camera_index}")
+        print(f"No se puede abrir la cámara {camera_index}")
         sys.exit(1)
 
     fps = cap.get(cv2.CAP_PROP_FPS) or 30
@@ -239,13 +256,11 @@ def run(
 
     extractor = PoseExtractor()
 
-    # Estado
     state              = State.IDLE
     sign_frames: List[np.ndarray] = []
     no_hand_counter    = 0
     cooldown_remaining = 0
 
-    # Oración
     sentence:   List[str]       = []
     last_label: Optional[str]   = None
     last_conf:  Optional[float] = None
@@ -274,7 +289,7 @@ def run(
                     key = cv2.waitKey(1) & 0xFF
                     if key == ord('q'):
                         break
-                    _handle_key(key, sentence)
+                    _handle_key(key, sentence, client)
                 continue
 
             if state == State.IDLE:
@@ -303,7 +318,7 @@ def run(
                     latency_ms = (time.perf_counter() - t0) * 1000
 
                     if result and result.get("success"):
-                        pred      = result["prediction"]
+                        pred       = result["prediction"]
                         last_label = pred["label"]
                         last_conf  = pred["confidence"]
                         last_lat   = latency_ms
@@ -336,7 +351,7 @@ def run(
                 key = cv2.waitKey(1) & 0xFF
                 if key == ord('q'):
                     break
-                _handle_key(key, sentence)
+                _handle_key(key, sentence, client)
 
     finally:
         cap.release()
@@ -348,48 +363,32 @@ def run(
             print(f"Última oración: {' '.join(sentence)}")
 
 
-def _handle_key(key: int, sentence: List[str]):
-    if key in (13, 10):   # Enter
-        oracion = " ".join(sentence)
-        print(f"\n[ORACIÓN ENVIADA]: {oracion}\n")
-        sentence.clear()
-    elif key in (8, 127): # Backspace
-        if sentence:
-            print(f"[Borrado]: {sentence.pop()}")
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Simulador de frontend para pruebas locales del backend de lengua de señas.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument(
-        "--url",        default="http://localhost:8000",
-        help="URL base del backend FastAPI",
-    )
-    parser.add_argument(
-        "--api-key",    default=os.getenv("API_KEY", ""),
-        help="Valor del header X-API-Key (o variable de entorno API_KEY)",
-    )
-    parser.add_argument("--camera",     type=int,   default=0,  help="Índice de cámara")
-    parser.add_argument("--patience",   type=int,   default=10, help="Frames sin manos para cerrar una seña")
-    parser.add_argument("--cooldown",   type=int,   default=15, help="Frames de pausa post-predicción")
-    parser.add_argument("--min-frames", type=int,   default=10, help="Mínimo de frames para enviar al backend")
-    parser.add_argument("--no-display", action="store_true",    help="Desactivar ventana de OpenCV")
+    parser.add_argument("--url",        default="http://localhost:8000")
+    parser.add_argument("--api-key",    default=os.getenv("API_KEY", ""))
+    parser.add_argument("--camera",     type=int, default=0)
+    parser.add_argument("--patience",   type=int, default=10)
+    parser.add_argument("--cooldown",   type=int, default=15)
+    parser.add_argument("--min-frames", type=int, default=10)
+    parser.add_argument("--no-display", action="store_true")
 
     args = parser.parse_args()
 
     if not args.api_key:
-        print("[ERROR] Falta la API key.")
-        print("        Pásala con --api-key <key> o define la variable de entorno API_KEY.")
+        print("Falta la API key.")
+        print("Pásala con --api-key <key> o define la variable de entorno API_KEY.")
         sys.exit(1)
 
     run(
-        base_url        = args.url,
-        api_key         = args.api_key,
-        camera_index    = args.camera,
-        no_hand_patience= args.patience,
-        cooldown_frames = args.cooldown,
-        min_frames      = args.min_frames,
-        display         = not args.no_display,
+        base_url         = args.url,
+        api_key          = args.api_key,
+        camera_index     = args.camera,
+        no_hand_patience = args.patience,
+        cooldown_frames  = args.cooldown,
+        min_frames       = args.min_frames,
+        display          = not args.no_display,
     )

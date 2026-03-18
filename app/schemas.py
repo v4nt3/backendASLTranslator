@@ -52,3 +52,9 @@ class ErrorResponse(BaseModel):
     success: bool = False
     error: str
     detail: Optional[str] = None
+
+class ProcessSentenceRequest(BaseModel):
+    words: str
+
+class ProcessSentenceResponse(BaseModel):
+    sentence: str

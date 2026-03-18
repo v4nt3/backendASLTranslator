@@ -15,7 +15,12 @@ from app.schemas import (
     ErrorResponse,
     SignPredictionResponse,
     TopKPrediction,
+    ProcessSentenceRequest, 
+    ProcessSentenceResponse
 )
+
+from app.llm_service import process_sentence
+
 from app.security import (
     verify_api_key,
     check_rate_limit,
@@ -87,7 +92,7 @@ app = FastAPI(
         "and returns sign predictions from a Transformer model. "
         "No keypoint data or prediction content is stored or logged."
     ),
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
     responses={500: {"model": ErrorResponse}},
 )
@@ -150,7 +155,6 @@ def _ensure_engine():
         )
 
 
-
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 async def health_check():
     """Public endpoint — returns model readiness without exposing internals."""
@@ -193,8 +197,6 @@ async def predict_sign(request: PredictSignRequest):
     try:
         prediction = engine.predict_sign(features)
     except Exception as e:
-        # Log the error type only — avoid logging tensor contents or
-        # prediction payloads that could contain user information.
         logger.error(f"Inference error: {type(e).__name__}")
         raise HTTPException(status_code=500, detail="Inference failed.")
     finally:
@@ -212,6 +214,17 @@ async def predict_sign(request: PredictSignRequest):
             end_frame=prediction.end_frame,
         )
     )
+
+@app.post(
+    "/process/sentence",
+    response_model=ProcessSentenceResponse,
+    tags=["NLP"],
+    dependencies=[Depends(verify_api_key), Depends(check_rate_limit)],
+)
+async def process_sentence_endpoint(request: ProcessSentenceRequest):
+    result = process_sentence(request.words)
+    return ProcessSentenceResponse(sentence=result)
+
 
 @app.get(
     "/labels",

@@ -136,16 +136,7 @@ class SignLanguageInference:
     def _prepare_features(
         self, features: np.ndarray
     ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
-        Pad / truncate to max_seq_length and build the attention mask.
 
-        Args:
-            features: [seq_len, feature_dim]
-
-        Returns:
-            pose_tensor  [1, max_seq_length, feature_dim]
-            mask_tensor  [1, max_seq_length]  (True = valid frame)
-        """
         num_frames = len(features)
 
         if num_frames > self.max_seq_length:
@@ -208,15 +199,7 @@ class SignLanguageInference:
         )
 
     def predict_sign(self, features: np.ndarray) -> SignPrediction:
-        """
-        Predict a single isolated sign from a pre-extracted keypoint sequence.
 
-        Args:
-            features: [num_frames, 858]  — already extracted by the client
-
-        Returns:
-            SignPrediction
-        """
         start = time.perf_counter()
 
         prediction = self._predict_window(features)
