@@ -1,7 +1,7 @@
 import google.generativeai as genai #type: ignore
 import os
 
-from dotenv import load_dotenv 
+from dotenv import load_dotenv #type: ignore
 load_dotenv()
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
