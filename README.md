@@ -1,125 +1,123 @@
-# ASL Translator Backend API
+# API Backend de Traductor ASL
 
-A high-performance REST API for American Sign Language (ASL) recognition using deep learning. This backend processes keypoint sequences extracted through MediaPipe and returns sign language predictions using a Transformer-based neural network model.
+API REST para el reconocimiento del Lenguaje de Signos Americano (ASL) utilizando aprendizaje profundo. Este backend procesa secuencias de puntos clave extraídos a través de MediaPipe y devuelve predicciones de lenguaje de signos utilizando un modelo de red neuronal basada en Transformer.
 
-## Features
+## Características
 
-- **Transformer-based Sign Recognition**: State-of-the-art deep learning model with 2,286 ASL sign classes
-- **Secure API**: API key authentication and rate limiting for production deployments
-- **Real-time Inference**: Optimized inference engine with concurrent request handling
-- **LLM Integration**: Sentence processing and contextualization using Google Generative AI
+- **Reconocimiento de Signos basado en Transformer**: Modelo de aprendizaje profundo con 2,286 clases de signos ASL
+- **Seguridad**: Autenticación por clave API y limitación de velocidad para implementaciones en producción
+- **Inferencia en Tiempo Real**: Motor de inferencia optimizado con manejo de solicitudes concurrentes
+- **Integración de LLM**: Procesamiento de oraciones y contextualización usando Google Generative AI
 
-## Tech Stack
+## Pila Tecnológica
 
 - **Framework**: FastAPI
-- **Deep Learning**: PyTorch with Transformer architecture
-- **Language Model**: Google Generative AI
-- **Server**: Uvicorn (ASGI)
-- **Keypoint Detection**: MediaPipe (client-side extraction)
+- **Aprendizaje Profundo**: PyTorch con arquitectura Transformer
+- **Modelo de Lenguaje**: Google Generative AI
+- **Servidor**: Uvicorn (ASGI)
+- **Detección de Puntos Clave**: MediaPipe (extracción del lado del cliente)
 
-## Project Structure
+## Estructura del Proyecto
 
 ```
 backendASLTranslator/
 ├── app/
-│   ├── main.py              # FastAPI application and endpoints
-│   ├── llm_service.py       # LLM integration for sentence processing
-│   ├── schemas.py           # Pydantic request/response models
-│   └── security.py          # Authentication and rate limiting
+│   ├── main.py              # Aplicación FastAPI y puntos finales
+│   ├── llm_service.py       # Integración LLM para procesamiento de oraciones
+│   ├── schemas.py           # Modelos de solicitud/respuesta de Pydantic
+│   └── security.py          # Autenticación y limitación de velocidad
 ├── transformer/
 │   ├── core/
-│   │   ├── config.py        # Configuration management
-│   │   └── exceptions.py    # Custom exceptions
+│   │   ├── config.py        # Gestión de configuración
+│   │   └── exceptions.py    # Excepciones personalizadas
 │   ├── inference/
-│   │   └── engine.py        # Sign language inference engine
+│   │   └── engine.py        # Motor de inferencia del lenguaje de signos
 │   └── model/
-│       ├── components.py    # Model components
-│       └── transformer.py   # Transformer architecture
+│       ├── components.py    # Componentes del modelo
+│       └── transformer.py   # Arquitectura Transformer
 ├── models/
-│   ├── best_model.pt        # Trained model checkpoint (2,286 classes)
-│   └── labels.json          # Sign class labels
+│   ├── best_model.pt        # Punto de control del modelo entrenado (2,286 clases)
+│   └── labels.json          # Etiquetas de clases de signos
 ├── tests/
-│   └── test_units.py        # Unit tests
-├── config.yaml              # Model configuration
-├── requirements.txt         # Python dependencies
-├── Dockerfile               # Docker image configuration
-├── pytest.ini               # Pytest configuration
-└── Procfile                 # Heroku deployment configuration
+│   └── test_units.py        # Pruebas unitarias
+├── config.yaml              # Configuración del modelo
+├── requirements.txt         # Dependencias de Python
+└── Procfile                 # Configuración de despliegue de Heroku
 ```
 
-## Installation
+## Instalación
 
-### Prerequisites
+### Requisitos Previos
 
 - Python 3.10+
-- PyTorch (CPU or CUDA)
+- PyTorch (CPU o CUDA)
 - pip
 
-### Setup
+### Configuración
 
-1. **Clone the repository**
+1. **Clonar el repositorio**
    ```bash
    git clone <repository-url>
    cd backendASLTranslator
    ```
 
-2. **Create and activate virtual environment**
+2. **Crear y activar entorno virtual**
    ```bash
    python -m venv env
-   source env/bin/activate  # On Windows: env\Scripts\activate
+   env\Scripts\activate
    ```
 
-3. **Install dependencies**
+3. **Instalar dependencias**
    ```bash
    pip install -r requirements.txt
    ```
 
-4. **Download model (if not included)**
+4. **Descargar el modelo (si no está incluido)**
    ```bash
    python download_model.py
    ```
 
-5. **Set environment variables**
+5. **Establecer variables de entorno**
    ```bash
-   # Create .env file
+   # Crear archivo .env
    API_KEY=your_secret_api_key
    ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:8080
-   DEVICE=cpu  # or 'cuda' for GPU
-   GOOGLE_API_KEY=your_google_api_key  # For LLM features
+   DEVICE=cpu  # o 'cuda' para GPU
+   GOOGLE_API_KEY=your_google_api_key  # Para características de LLM
    ```
 
-## Usage
+## Uso
 
-### Running the Server
+### Ejecutar el Servidor
 
 ```bash
-# Development
+# Desarrollo
 python -m uvicorn app.main:app --reload
 
-# Production
+# Producción
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-The API will be available at `http://localhost:8000`
+La API estará disponible en `http://localhost:8000`
 
-### API Documentation
+### Documentación de API
 
-Interactive API documentation is available at:
+La documentación interactiva de la API está disponible en:
 - **Swagger UI**: `http://localhost:8000/docs`
 - **ReDoc**: `http://localhost:8000/redoc`
 
-## API Endpoints
+## Puntos Finales de la API
 
-### System Endpoints
+### Puntos Finales del Sistema
 
-#### Health Check
+#### Verificación
 ```http
 GET /health
 ```
 
-Returns server status and model information. **No authentication required**.
+Devuelve el estado del servidor e información del modelo. **No se requiere autenticación**.
 
-**Response:**
+**Respuesta:**
 ```json
 {
   "status": "ok",
@@ -130,35 +128,35 @@ Returns server status and model information. **No authentication required**.
 }
 ```
 
-#### Get Labels
+#### Obtener Etiquetas
 ```http
 GET /labels
 ```
 
-Returns all available sign language labels.
+Devuelve todas las etiquetas disponibles.
 
-**Response:**
+**Respuesta:**
 ```json
 {
   "num_classes": 2286,
   "labels": {
-    "0": "hello",
-    "1": "goodbye",
+    "0": "hola",
+    "1": "adiós",
     ...
   }
 }
 ```
 
-#### Get Configuration
+#### Obtener Configuración
 ```http
 GET /config
 ```
 
-Returns active inference configuration for debugging.
+Devuelve la configuración de inferencia activa para depuración.
 
-### Prediction Endpoints
+### Puntos Finales de Predicción
 
-#### Predict Single Sign
+#### Predecir un Signo Individual
 ```http
 POST /predict/sign
 Content-Type: application/json
@@ -173,25 +171,25 @@ Authorization: Bearer YOUR_API_KEY
 }
 ```
 
-**Parameters:**
-- `keypoints`: 2D array of shape (num_frames, 858)
-  - Left hand: 63 features
-  - Right hand: 63 features
-  - Face: 204 features
-  - Body: 99 features
-  - Velocity: 429 features
-- Maximum frames per request: 512
+**Parámetros:**
+- `keypoints`: Array 2D de forma (num_frames, 858)
+  - Mano izquierda: 63 características
+  - Mano derecha: 63 características
+  - Cara: 204 características
+  - Cuerpo: 99 características
+  - Velocidad: 429 características
+- Máximo de fotogramas por solicitud: 512
 
-**Response:**
+**Respuesta:**
 ```json
 {
   "prediction": {
-    "label": "hello",
+    "label": "hola",
     "confidence": 0.9876,
     "top_k": [
-      {"label": "hello", "confidence": 0.9876},
+      {"label": "hola", "confidence": 0.9876},
       {"label": "hi", "confidence": 0.0098},
-      {"label": "greetings", "confidence": 0.0015}
+      {"label": "saludos", "confidence": 0.0015}
     ],
     "start_frame": 5,
     "end_frame": 42
@@ -199,35 +197,35 @@ Authorization: Bearer YOUR_API_KEY
 }
 ```
 
-#### Process Sentence
+#### Procesar Oración
 ```http
 POST /process/sentence
 Content-Type: application/json
 Authorization: Bearer YOUR_API_KEY
 
 {
-  "words": ["hello", "how", "are", "you"]
+  "words": ["hola", "cómo", "estás", "tú"]
 }
 ```
 
-Processes a list of words through the LLM for contextualization and sentence creation.
+Procesa una lista de palabras a través del LLM para contextualización y creación de oraciones.
 
-**Response:**
+**Respuesta:**
 ```json
 {
-  "sentence": "Hello, how are you?"
+  "sentence": "¡Hola, cómo estás?"
 }
 ```
 
-## Model Configuration
+## Configuración del Modelo
 
-The model is configured through `config.yaml`. Key parameters:
+El modelo se configura a través de `config.yaml`. Parámetros clave:
 
 ```yaml
 data:
-  num_classes: 2286           # Total ASL signs
-  max_seq_length: 64          # Maximum sequence length
-  pose_feature_dim: 858       # Input feature dimension
+  num_classes: 2286           # Total de signos ASL
+  max_seq_length: 64          # Longitud máxima de secuencia
+  pose_feature_dim: 858       # Dimensión de características de entrada
 
 model:
   model_type: transformer
@@ -238,84 +236,84 @@ model:
   dropout: 0.2
 ```
 
-## Authentication & Rate Limiting
+## Autenticación y Limitación de Velocidad
 
-### API Key Authentication
+### Autenticación por Clave API
 
-All protected endpoints require an `Authorization` header:
+Todos los puntos finales protegidos requieren un encabezado `Authorization`:
 
 ```bash
 curl -H "Authorization: Bearer YOUR_API_KEY" \
   http://localhost:8000/predict/sign
 ```
 
-### Rate Limiting
+### Limitación de Velocidad
 
-- Default: 30 requests per minute per API key
-- Configurable via environment variables
+- Predeterminado: 30 solicitudes por minuto por clave API
+- Configurable a través de variables de entorno
 
-## Running Tests
+## Ejecutar Pruebas
 
 ```bash
-# Run all tests
+# Ejecutar todas las pruebas
 pytest
 
-# Run with coverage
+# Ejecutar con cobertura
 pytest --cov=app --cov-report=html
 
-# View coverage report
+# Ver informe de cobertura
 open htmlcov/index.html
 ```
 
-### Environment Variables
+### Variables de Entorno
 
-| Variable | Default | Description |
+| Variable | Predeterminado | Descripción |
 |----------|---------|-------------|
-| `API_KEY` | Required | Secret key for API authentication |
-| `GOOGLE_API_KEY` | Required | Google API key for LLM features |
-| `ALLOWED_ORIGINS` | Localhost | CORS allowed origins (comma-separated) |
-| `DEVICE` | `cpu` | Compute device (`cpu` or `cuda`) |
-| `CHECKPOINT_PATH` | `models/best_model.pt` | Path to model checkpoint |
-| `CONFIG_PATH` | `config.yaml` | Path to configuration file |
-| `LABELS_PATH` | `models/labels.json` | Path to labels file |
+| `API_KEY` | Requerido | Clave secreta para autenticación de API |
+| `GOOGLE_API_KEY` | Requerido | Clave API de Google para características de LLM |
+| `ALLOWED_ORIGINS` | Localhost | Orígenes permitidos de CORS (separados por comas) |
+| `DEVICE` | `cpu` | Dispositivo de procesamiento (`cpu` o `cuda`) |
+| `CHECKPOINT_PATH` | `models/best_model.pt` | Ruta al punto de control del modelo |
+| `CONFIG_PATH` | `config.yaml` | Ruta al archivo de configuración |
+| `LABELS_PATH` | `models/labels.json` | Ruta al archivo de etiquetas |
 
-## Performance Considerations
+## Consideraciones de Rendimiento
 
-- **Inference Time**: ~50-100ms per sign prediction (depends on sequence length)
-- **Concurrent Requests**: Supports 2 concurrent inference requests by default
-- **Memory Usage**: ~2GB typical (trained on GPU, runs on CPU)
-- **Maximum Frames**: 512 frames per request
+- **Tiempo de Inferencia**: ~50-100ms por predicción de seña
+- **Solicitudes Concurrentes**: Soporta 2 solicitudes de inferencia concurrentes por defecto
+- **Uso de Memoria**: ~2GB típico (entrenado en GPU, se ejecuta en CPU)
+- **Máximo de Fotogramas**: 512 fotogramas por solicitud
 
-## Input Data Format
+## Formato de Datos de Entrada
 
-### Keypoint Extraction
+### Extracción de Puntos Clave
 
-Keypoints should be extracted using MediaPipe's Holistic solution with the following structure:
+Los puntos clave deben extraerse usando la solución Holistic de MediaPipe con la siguiente estructura:
 
-1. **Left Hand**: 21 landmarks × 3 coordinates = 63 features
-2. **Right Hand**: 21 landmarks × 3 coordinates = 63 features
-3. **Face**: 468 landmarks → pooled to 204 features
-4. **Body**: 33 landmarks × 3 coordinates = 99 features
-5. **Velocity**: Temporal derivatives of all keypoints = 429 features
+1. **Mano Izquierda**: 21 puntos de referencia × 3 coordenadas = 63 características
+2. **Mano Derecha**: 21 puntos de referencia × 3 coordenadas = 63 características
+3. **Cara**: 468 puntos de referencia → agrupados en 204 características
+4. **Cuerpo**: 33 puntos de referencia × 3 coordenadas = 99 características
+5. **Velocidad**: Derivadas temporales de todos los puntos clave = 429 características
 
-Total: 858 features per frame
+Total: 858 características por fotograma
 
-## Error Handling
+## Manejo de Errores
 
-The API returns standardized error responses:
+La API devuelve respuestas de error estandarizadas:
 
 ```json
 {
-  "detail": "Error message describing what went wrong"
+  "detail": "Mensaje de error describiendo qué salió mal"
 }
 ```
 
-**Common HTTP Status Codes:**
-- `200 OK`: Successful request
-- `400 Bad Request`: Invalid input data
-- `401 Unauthorized`: Missing or invalid API key
-- `413 Payload Too Large`: Input exceeds maximum frame limit
-- `422 Unprocessable Entity`: Invalid data format
-- `429 Too Many Requests`: Rate limit exceeded
-- `500 Internal Server Error`: Server error during inference
-- `503 Service Unavailable`: Model not loaded yet
+**Códigos HTTP Comunes:**
+- `200 OK`: Solicitud exitosa
+- `400 Bad Request`: Datos de entrada inválidos
+- `401 Unauthorized`: Clave API faltante o inválida
+- `413 Payload Too Large`: La entrada excede el límite máximo de fotogramas
+- `422 Unprocessable Entity`: Formato de datos inválido
+- `429 Too Many Requests`: Límite de velocidad excedido
+- `500 Internal Server Error`: Error del servidor durante la inferencia
+- `503 Service Unavailable`: Modelo no cargado todavía
