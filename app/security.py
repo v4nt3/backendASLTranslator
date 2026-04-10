@@ -28,10 +28,6 @@ async def verify_api_key(
 ) -> str:
     """
     Validate the X-API-Key header.
-
-    - If API_KEY env var is not set, the app refuses to start in a way that
-      makes the misconfiguration obvious (see lifespan in main.py).
-    - In practice this dependency always has a key to check against.
     """
     expected = get_api_key()
 
@@ -68,9 +64,6 @@ RATE_LIMIT_WINDOW_SECONDS = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
 class RateLimiter:
     """
     In-memory sliding window rate limiter keyed by client IP.
-
-    Not suitable for multi-process deployments (use a Redis-backed limiter
-    for horizontal scaling). Fine for a single-process deployment (Render free tier).
     """
 
     TRUST_PROXY: bool = os.getenv("TRUST_PROXY", "false").lower() == "true"
@@ -150,9 +143,6 @@ _inference_semaphore: Optional[asyncio.Semaphore] = None
 def get_inference_semaphore() -> asyncio.Semaphore:
     """
     Lazy-initialize the semaphore inside the running event loop.
-
-    Limits simultaneous model inferences to prevent CPU saturation on
-    resource-constrained environments.
     """
     global _inference_semaphore
     if _inference_semaphore is None:

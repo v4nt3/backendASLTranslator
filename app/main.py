@@ -92,7 +92,7 @@ app = FastAPI(
         "and returns sign predictions from a Transformer model. "
         "No keypoint data or prediction content is stored or logged."
     ),
-    version="2.0.0",
+    version="3.0.0",
     lifespan=lifespan,
     responses={500: {"model": ErrorResponse}},
 )
@@ -108,13 +108,7 @@ app.add_middleware(
 
 def _validate_keypoints(keypoints: list) -> np.ndarray:
     """
-    Convert and validate the keypoints payload.
-
-    Checks (STRIDE — Tampering / DoS):
-    - Must be a 2D array
-    - Must not be empty
-    - Frame count ≤ MAX_FRAMES_PER_REQUEST
-    - Feature dim == EXPECTED_FEATURE_DIM (858)
+    Convert and validate the keypoints payload. (STRIDE)
     """
     arr = np.array(keypoints, dtype=np.float32)
 
@@ -158,7 +152,7 @@ def _ensure_engine():
 
 @app.get("/health", response_model=HealthResponse, tags=["System"])
 async def health_check():
-    """Public endpoint — returns model readiness without exposing internals."""
+    """Public endpoint"""
     if engine is None:
         return HealthResponse(
             status="loading",
@@ -185,11 +179,7 @@ async def health_check():
 )
 async def predict_sign(request: PredictSignRequest):
     """
-    Predict a single sign from a pre-extracted keypoint sequence.
-
-    The frontend runs MediaPipe Holistic in the browser, detects hand
-    presence to segment each sign, and sends the keypoints here as
-    a 2D array [num_frames, 858]. No video or image data is transmitted.
+    Predict a single sign
     """
     _ensure_engine()
     features = _validate_keypoints(request.keypoints)
@@ -236,8 +226,6 @@ async def process_sentence_endpoint(request: ProcessSentenceRequest):
 async def get_labels():
     """
     Return the full label mapping.
-
-    Protected by API key — the label vocabulary is not public information.
     """
     _ensure_engine()
     return {
@@ -255,9 +243,6 @@ async def get_labels():
 async def get_config():
     """
     Return active inference config for debugging.
-
-    Protected by API key — exposes model architecture details that should
-    not be public in a production deployment.
     """
     _ensure_engine()
     return {
